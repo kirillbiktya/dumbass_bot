@@ -8,15 +8,15 @@ log = logger
 logger.setLevel(logging.INFO)
 
 bot = TeleBot(config.API_TOKEN)
-webhook = Flask('webhook')
+app = Flask('webhook')
 
 
-@webhook.route('/', methods=['GET', 'HEAD'])
+@app.route('/', methods=['GET', 'HEAD'])
 def index():
     return ''
 
 
-@webhook.route(config.WEBHOOK_URL_PATH, methods=['POST'])
+@app.route(config.WEBHOOK_URL_PATH, methods=['POST'])
 def webhook():
     if request.headers.get('content-type') == 'application/json':
         json_string = request.get_data().decode('utf-8')
@@ -41,4 +41,4 @@ bot.remove_webhook()
 sleep(0.1)
 bot.set_webhook(url=config.WEBHOOK_URL_BASE + config.WEBHOOK_URL_PATH)
 
-webhook.run(host=config.WEBHOOK_LISTEN, port=config.WEBHOOK_LISTEN_PORT)
+app.run(host=config.WEBHOOK_LISTEN, port=config.WEBHOOK_LISTEN_PORT)
