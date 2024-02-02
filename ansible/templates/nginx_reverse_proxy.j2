@@ -1,0 +1,11 @@
+server {
+    server_name {{ server_dns_name }};
+
+    location /webhook {
+        proxy_pass http://127.0.0.1:{{ webhook_listen_port }};
+    }
+
+    location / {
+        return 400;
+    }
+}

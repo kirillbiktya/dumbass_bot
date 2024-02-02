@@ -1,0 +1,19 @@
+[Unit]
+Description=Dumbass Telegram Bot
+After=network.target
+Wants=nginx.service
+
+[Service]
+WorkingDirectory={{ install_dir }}/dumbass_bot
+User={{ username }}
+Group={{ username }}
+ExecStart=/bin/bash run_bot.sh
+Restart=no
+# RestartSec=3
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=dumbass_bot
+KillSignal=SIGINT
+
+[Install]
+WantedBy=multi-user.target

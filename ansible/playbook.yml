@@ -1,0 +1,156 @@
+# Установить nginx
+# добавить конфигурацию для сервера nginx
+# настроить ssl для nginx!
+# перезапустить nginx
+# клонировать репозиторий
+# создать конфиги, unit-файл
+# установить сервис
+# запустить сервис
+# PROFIT
+
+---
+
+- name: Install and start dummy-bot
+  vars_prompt:
+    - name: username
+      prompt: "Username to auth"
+      private: false
+    - name: server_dns_name
+      prompt: "Server's FQDN"
+      private: false
+    - name: webhook_listen_port
+      prompt: "Webhook inner port to listen"
+      private: false
+    - name: bot_api_token
+      prompt: "API token of bot"
+      private: false
+    - name: install_dir
+      prompt: "Directory to install"
+      private: false
+    - name: email
+      prompt: "Your email for info about your ssl certs"
+      private: false
+  hosts: dumbass_bot
+  user: '{{ username }}'
+
+  tasks:
+    - name: Install dependencies
+      ansible.builtin.apt:
+        pkg:
+          - nginx
+          - certbot
+          - python3-certbot-nginx
+          - python3-venv
+          - git
+        state: latest
+        update-cache: yes
+      become: true
+
+    - name: Add webhook reverse proxy to Nginx
+      ansible.builtin.template:
+        src: templates/nginx_reverse_proxy.j2
+        dest: '/etc/nginx/sites-available/{{ server_dns_name }}.conf'
+      become: true
+
+    - name: Enable webhook reverse proxy
+      ansible.builtin.file:
+        src: '/etc/nginx/sites-available/{{ server_dns_name }}.conf'
+        dest: '/etc/nginx/sites-enabled/{{ server_dns_name }}.conf'
+        owner: '{{ username }}'
+        group: '{{ username }}'
+        state: link
+      become: true
+      notify:
+        - reload nginx
+
+    - name: Setup SSL
+      ansible.builtin.command:
+        argv:
+          - /usr/bin/certbot
+          - -d
+          - '{{ server_dns_name }}'
+          - --nginx
+          - -n
+          - --agree-tos
+          - -m
+          - '{{ email }}'
+      become: true
+
+    - name: Copy GitHub deploy key
+      ansible.builtin.copy:
+        src: github_deploy_key
+        dest: '{{ install_dir }}/deploy_key'
+        owner: '{{ username }}'
+        group: '{{ username }}'
+        mode: '0600'
+
+    - name: Check if ssh config exists
+      stat:
+        path: '{{ ansible_env.HOME }}/.ssh/config'
+      register: ssh_config_file
+
+    - name: Add info to ssh config
+      ansible.builtin.blockinfile:
+        path: '{{ ansible_env.HOME }}/.ssh/config'
+        create: true
+        block: |
+          Host github-app
+          Hostname github.com
+          IdentityFile '{{ install_dir }}/deploy_key'
+      when: not ssh_config_file.stat.exists
+
+    - name: Get code from GitHub
+      ansible.builtin.git:
+        repo: git@github-app:kirillbiktya/ansible_dummy_telegram_bot.git
+        dest: '{{ install_dir }}/dumbass_bot'
+        accept_hostkey: true
+
+    - name: Check if venv exists
+      stat:
+        path: '{{ install_dir }}/dumbass_bot/venv'
+      register: venv_dir
+
+    - name: Create venv
+      ansible.builtin.command:
+        argv:
+          - python3
+          - -m
+          - venv
+          - venv
+        chdir: '{{ install_dir }}/dumbass_bot'
+      when: not venv_dir.stat.exists
+
+    - name: Install python dependencies
+      shell: source venv/bin/activate && pip install -r requirements.txt
+      args:
+        chdir: '{{ install_dir }}/dumbass_bot'
+        executable: /bin/bash
+
+    - name: Setup bot config
+      ansible.builtin.template:
+        src: templates/config.j2
+        dest: '{{ install_dir }}/dumbass_bot/config.py'
+
+    - name: Create bot service
+      ansible.builtin.template:
+        src: templates/unit_file.j2
+        dest: '/etc/systemd/system/dumbass_bot.service'
+      become: true
+
+    - name: Reload systemctl-daemon
+      shell: systemctl daemon-reload
+      become: true
+      args:
+        executable: /bin/bash
+
+    - name: Enable and start bot service
+      ansible.builtin.systemd:
+        name: dumbass_bot
+        state: started
+        # enabled: true
+
+
+  handlers:
+    - name: reload nginx
+      become: true
+      action: service name=nginx state=reloaded
