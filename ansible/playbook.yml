@@ -101,7 +101,7 @@
 
     - name: Get code from GitHub
       ansible.builtin.git:
-        repo: git@github-app:kirillbiktya/ansible_dummy_telegram_bot.git
+        repo: git@github-app:kirillbiktya/dumbass_bot.git
         dest: '{{ install_dir }}/dumbass_bot'
         accept_hostkey: true
 
